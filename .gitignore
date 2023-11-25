@@ -162,3 +162,5 @@ cython_debug/
 ### Added by JJ Nunez
 # LibreWriter lockfiles
 *.doc#
+*.odt#
+*.ods#
