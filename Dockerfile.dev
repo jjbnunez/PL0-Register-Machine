@@ -1,10 +1,8 @@
-# Use a base image for development
-# FROM ubuntu:24.04 AS dev
-
 FROM alpine:latest AS dev
 
-ENV LUA_VERSION=5.3.6
-ENV LUA_ROCKS_VERSION=3.13.0
+# Set up lua user
+RUN addgroup -g 1000 lua \
+	&& adduser -u 1000 -G lua -s /bin/sh -D lua
 
 RUN apk add --no-cache \
 	# Provides C compiler for building Lua from source
@@ -31,6 +29,9 @@ WORKDIR /src
 # COPY ./lua-${LUA_VERSION}.tar.gz .
 # COPY ./luarocks-${LUA_ROCKS_VERSION}.tar.gz .
 
+ARG LUA_VERSION=5.3.6
+ARG LUA_ROCKS_VERSION=3.13.0
+
 # Download source tarballs and unpack tarballs
 RUN wget https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz \
 	&& wget https://luarocks.github.io/luarocks/releases/luarocks-${LUA_ROCKS_VERSION}.tar.gz \
@@ -48,14 +49,21 @@ WORKDIR /src/luarocks-${LUA_ROCKS_VERSION}
 RUN ./configure --with-lua-include=/usr/local/include
 RUN make
 RUN make install
+
+ARG USERNAME=lua
+
+# Set locale so Unicode characters render correctly in locale-aware tools (e.g. tmux)
+ENV LANG=C.UTF-8
+
+USER ${USERNAME}
+
 # Configure development dependencies
-RUN luarocks install tl \
-	&& luarocks install teal-language-server \
- 	&& luarocks install cyan
+RUN luarocks config local_by_default true \
+    && luarocks install tl \
+    && luarocks install teal-language-server \
+    && luarocks install cyan
 
 # Copy source files to container app folder
-WORKDIR /app
+WORKDIR /home/${USERNAME}/app
 COPY . .
-
-# Finally
-ENTRYPOINT ["tail", "-f", "/dev/null"]
+ENV PATH=/home/${USERNAME}/.luarocks/bin:${PATH}

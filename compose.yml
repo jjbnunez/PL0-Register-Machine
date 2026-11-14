@@ -1,5 +1,6 @@
 services:
   dev:
+    command: sleep infinity
     build:
       context: .
       dockerfile: Dockerfile.dev
