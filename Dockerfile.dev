@@ -1,0 +1,61 @@
+# Use a base image for development
+# FROM ubuntu:24.04 AS dev
+
+FROM alpine:latest AS dev
+
+ENV LUA_VERSION=5.3.6
+ENV LUA_ROCKS_VERSION=3.13.0
+
+RUN apk add --no-cache \
+	# Provides C compiler for building Lua from source
+	gcc \
+	# Provides C standard library for building Lua from source
+	musl-dev \
+	# Provides readline library for building Lua from source
+	readline-dev \
+	# Provides make CLI for building Lua from source
+	make \
+	# Provides cmake CLI for building LuaRocks package dependencies
+	cmake \
+	# Provides git CLI for building LuaRocks package dependencies
+	git \
+	# Provides Linux headers for building LuaRocks package dependencies 
+	linux-headers \
+	# Provides GNU wget to replace BusyBox wget to faciliate LuaRocks manifest downloads 
+	wget
+
+# Set working directory
+WORKDIR /src
+
+# BACKUP FUNCTIONS TO LOAD SOURCE TARBALLS FROM LOCAL DISK
+# COPY ./lua-${LUA_VERSION}.tar.gz .
+# COPY ./luarocks-${LUA_ROCKS_VERSION}.tar.gz .
+
+# Download source tarballs and unpack tarballs
+RUN wget https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz \
+	&& wget https://luarocks.github.io/luarocks/releases/luarocks-${LUA_ROCKS_VERSION}.tar.gz \
+	&& tar xzf lua-${LUA_VERSION}.tar.gz \
+	&& tar xzf luarocks-${LUA_ROCKS_VERSION}.tar.gz
+
+# Build and install Lua
+WORKDIR /src/lua-${LUA_VERSION}
+RUN sed -i 's/PLAT= none/PLAT= linux/g' Makefile
+RUN make all test \
+	&& make install
+
+# Build and install LuaRocks
+WORKDIR /src/luarocks-${LUA_ROCKS_VERSION}
+RUN ./configure --with-lua-include=/usr/local/include
+RUN make
+RUN make install
+# Configure development dependencies
+RUN luarocks install tl \
+	&& luarocks install teal-language-server \
+ 	&& luarocks install cyan
+
+# Copy source files to container app folder
+WORKDIR /app
+COPY . .
+
+# Finally
+ENTRYPOINT ["tail", "-f", "/dev/null"]
