@@ -1,29 +1,31 @@
-global MAX_LEXI_LEVELS = 3
-global MAX_STACK_HEIGHT = 2000
-global MAX_REGISTERS = 8
-global MAX_CODE_LENGTH = 500
+-- Note: main.lua must be executed from the
+-- directory it's in in order for these import
+-- statements to work properly.
+local CpuImplementation = require("domain.entities.cpu.cpu_implementation")
+local RegisterImplementation = require("domain.entities.register.register_implementation")
 
-global record Instruction
-    op: integer
-    reg: integer
-    level: integer
-    m: integer
-end
+local cpu = CpuImplementation:new()
+local register = RegisterImplementation:new()
+print("Register currently contains: " .. register:get())
+print("Register will be set to: " .. 5)
+register:set(5)
+print("Register now contains: " .. register:get())
+print("Accessing register's data field directly: " .. register.data_)
 
-global record CPU
-    bp: integer
-    sp: integer
-    pc: integer
-    ir: {integer}
-    stack: {integer}
-    regfile: {integer}
-    code: {{Instruction}}
-end
 
-global stack_counter = 0
+MAX_LEXI_LEVELS = 3
+MAX_STACK_HEIGHT = 2000
+MAX_REGISTERS = 8
+MAX_CODE_LENGTH = 500
+
+Instruction = {op = 0, reg = 0, level = 0, m = 0}
+
+CPU = {bp = 0, sp = 0, pc = 0, ir = {}, stack = {}, regfile = {}, code = {}}
+
+stack_counter = 0
 
 -- 16 modulus
-local function MOD(from: integer, from2: integer): integer
+local function MOD(from, from2)
     local to = -1
     if from2 == 0 then
         print("You are currently trying to divide by zero. Stop that.")
@@ -35,7 +37,7 @@ local function MOD(from: integer, from2: integer): integer
 end
 
 -- 17 equal
-local function EQL(from: integer, from2: integer): integer
+local function EQL(from, from2)
     if from == from2 then
         return 1
     else
@@ -43,7 +45,7 @@ local function EQL(from: integer, from2: integer): integer
     end
 end
 
-local function NEQ(from: integer, from2: integer): integer
+local function NEQ(from, from2)
     if from == from2 then
         return 0
     else
@@ -52,7 +54,7 @@ local function NEQ(from: integer, from2: integer): integer
 end
 
 -- 19 less than
-local function LSS(from: integer, from2: integer): integer
+local function LSS(from, from2)
     if from < from2 then
         return 1
     else
@@ -61,7 +63,7 @@ local function LSS(from: integer, from2: integer): integer
 end
 
 -- 20 less than or equal to
-local function LEQ(from: integer, from2: integer): integer
+local function LEQ(from, from2)
     if from <= from2 then
         return 1
     else
@@ -70,7 +72,7 @@ local function LEQ(from: integer, from2: integer): integer
 end
 
 -- 21 greater than
-local function GTR(from: integer, from2: integer): integer
+local function GTR(from, from2)
     if from > from2 then
         return 1
     else
@@ -78,7 +80,7 @@ local function GTR(from: integer, from2: integer): integer
     end
 end
 
-local function GEQ(from: integer, from2: integer): integer
+local function GEQ(from, from2)
     if from >= from2 then
         return 1
     else
@@ -86,26 +88,26 @@ local function GEQ(from: integer, from2: integer): integer
     end
 end
 
-local function base(l: integer, base_pointer: integer, stack: {integer}): integer
-    local bl: integer = base_pointer
+local function base(l, base_pointer, stack)
+    local bl = base_pointer
     while l > 0 do
-        local index: integer = bl + l
+        local index = bl + l
         bl = stack[index]
         l = l - 1
     end
     return bl
 end
 
-local function file_scan(filename: string, buffer: {Instruction}): {Instruction}
+local function file_scan(filename, buffer)
     local ifp = assert(io.open(filename, "r"))
     local ofp = assert(io.open("opprintout.txt", "w"))
     local ofp2 = assert(io.open("stacktrace.txt", "w"))
-    local i: integer
-    local op: integer
-    local reg: integer
-    local level: integer
-    local m: integer
-    local opcode: string
+    local i
+    local op
+    local reg
+    local level
+    local m
+    local opcode
 
     ofp:close()
     ofp2:close()
@@ -168,16 +170,16 @@ local function file_scan(filename: string, buffer: {Instruction}): {Instruction}
     return buffer
 end
 
-local function opprint(filename: string, line: integer, opcode: string, r: integer, l: integer, m: integer)
+local function opprint(filename, line, opcode, r, l, m)
     local ofp = assert(io.open(filename, "a"))
     ofp:write(line, opcode, r, l, m)
     ofp:close()
 end
 
-local function stack_trace(filename: string, line: integer, opcode: string, r: integer, l: integer, m: integer, stack: {integer}, processor: CPU, regs: {integer})
+local function stack_trace(filename, line, opcode, r, l, m, stack, processor, regs)
     local ofp = assert(io.open(filename, "a"))
     ofp:write(line, opcode, r, l, m, processor.pc, processor.bp, processor.sp)
-    local stack_counter_increment: integer = 0
+    local stack_counter_increment = 0
     while stack_counter_increment < stack_counter+5 do
         ofp:write(stack[stack_counter_increment])
         stack_counter_increment = stack_counter_increment + 1
@@ -191,7 +193,7 @@ local function stack_trace(filename: string, line: integer, opcode: string, r: i
     ofp:close()
 end
 
-local function debugprint(code: {Instruction}, proc: CPU, i: integer, stck: {integer}, regs: {integer})
+local function debugprint(code, proc, i, stck, regs)
     io.stderr:write(i, code[i].op, code[i].reg, code[i].level, code[i].m, "\n")
     io.stderr:write("Registers: ")
     for j=0, MAX_REGISTERS do
@@ -205,7 +207,7 @@ local function debugprint(code: {Instruction}, proc: CPU, i: integer, stck: {int
     io.stderr:write("\n\n")
 end
 
-local function init(processor: CPU, stack: {integer}, R: {integer}): CPU
+local function init(processor, stack, R)
     for i=0,MAX_STACK_HEIGHT do
         stack[i] = 0
     end
@@ -222,8 +224,8 @@ local function init(processor: CPU, stack: {integer}, R: {integer}): CPU
     return processor
 end
 
-local function execute(line: integer, code: {Instruction}, processor: CPU, stack: {integer}, R: {integer}): integer
-    local opcode: string
+local function execute(line, code, processor, stack, R)
+    local opcode
     local op = code[line].op
     local reg = code[line].reg
     local level = code[line].level
@@ -328,9 +330,9 @@ local function execute(line: integer, code: {Instruction}, processor: CPU, stack
     -- debugprint(code, processor, line, stack, R);
 end
 
-local function main(argc: integer, argv: {string}): integer
-    local line: integer
-    local halt: integer
+local function main(argc, argv)
+    local line
+    local halt
     local stack = {}
     for i=1,MAX_STACK_HEIGHT do
         stack[i] = 0
@@ -339,8 +341,8 @@ local function main(argc: integer, argv: {string}): integer
     for i=1,MAX_REGISTERS do
         R[i]=0
     end
-    local code: {Instruction}
-    local processor: CPU
+    local code
+    local processor
 
     code = file_scan(argv[1], code)
     processor = init(processor, stack, R)
@@ -351,3 +353,4 @@ local function main(argc: integer, argv: {string}): integer
         processor.pc = processor.pc + 1
     end
 end
+
