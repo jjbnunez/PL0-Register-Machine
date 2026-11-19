@@ -1,6 +1,6 @@
 local CpuInterface = require("domain.entities.cpu.cpu_interface")
 
-local CpuImplementation = {}
+local CpuImplementation = { bp = 1, sp = 0, pc = 0 }
 
 function CpuImplementation:new(o)
     o = o or {}

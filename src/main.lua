@@ -3,14 +3,11 @@
 -- statements to work properly.
 local CpuImplementation = require("domain.entities.cpu.cpu_implementation")
 local RegisterImplementation = require("domain.entities.register.register_implementation")
+local InstructionImplementation = require("domain.entities.instruction.instruction_implementation")
 
 local cpu = CpuImplementation:new()
 local register = RegisterImplementation:new()
-print("Register currently contains: " .. register:get())
-print("Register will be set to: " .. 5)
-register:set(5)
-print("Register now contains: " .. register:get())
-print("Accessing register's data field directly: " .. register.data_)
+local stack = {}
 
 
 MAX_LEXI_LEVELS = 3
@@ -18,9 +15,9 @@ MAX_STACK_HEIGHT = 2000
 MAX_REGISTERS = 8
 MAX_CODE_LENGTH = 500
 
-Instruction = {op = 0, reg = 0, level = 0, m = 0}
+Instruction = { op = 0, reg = 0, level = 0, m = 0 }
 
-CPU = {bp = 0, sp = 0, pc = 0, ir = {}, stack = {}, regfile = {}, code = {}}
+CPU = { bp = 0, sp = 0, pc = 0, ir = {}, stack = {}, regfile = {}, code = {} }
 
 stack_counter = 0
 
@@ -98,76 +95,21 @@ local function base(l, base_pointer, stack)
     return bl
 end
 
-local function file_scan(filename, buffer)
+local function file_scan(filename)
     local ifp = assert(io.open(filename, "r"))
     local ofp = assert(io.open("opprintout.txt", "w"))
     local ofp2 = assert(io.open("stacktrace.txt", "w"))
-    local i
-    local op
-    local reg
-    local level
-    local m
-    local opcode
 
+    local lines = {}
+    for line in ifp:lines() do
+        lines[#lines + 1] = line
+    end
+
+    ifp:close()
     ofp:close()
     ofp2:close()
 
-    --while ifp:read("l") do
-    --end
-    -- WITHIN LOOP
-    if op == 1 then
-        opcode = "lit"
-    elseif op == 2 then
-        opcode = "rtn"
-    elseif op == 3 then
-        opcode = "lod"
-    elseif op == 4 then
-        opcode = "sto"
-    elseif op == 5 then
-        opcode = "cal"
-    elseif op == 6 then
-        opcode = "inc"
-    elseif op == 7 then
-        opcode = "jmp"
-    elseif op == 8 then
-        opcode = "jpc"
-    elseif op == 9 then
-        opcode = "sio"
-    elseif op == 10 then
-        opcode = "neg"
-    elseif op == 11 then
-        opcode = "add"
-    elseif op == 12 then
-        opcode = "sub"
-    elseif op == 13 then
-        opcode = "mul"
-    elseif op == 14 then
-        opcode = "div"
-    elseif op == 15 then
-        opcode = "odd"
-    elseif op == 16 then
-        opcode = "mod"
-    elseif op == 17 then
-        opcode = "eql"
-    elseif op == 18 then
-        opcode = "neq"
-    elseif op == 19 then
-        opcode = "lss"
-    elseif op == 20 then
-        opcode = "leq"
-    elseif op == 21 then
-        opcode = "gtr"
-    elseif op == 22 then
-        opcode = "geq"
-    else
-        io.stderr:write("Invalid opcode: ", op)
-    end
-
-    --opprint("opprintout.txt", i, opcode, reg, level, m)
-    -- END LOOP
-    ifp:close()
-
-    return buffer
+    return lines
 end
 
 local function opprint(filename, line, opcode, r, l, m)
@@ -180,13 +122,13 @@ local function stack_trace(filename, line, opcode, r, l, m, stack, processor, re
     local ofp = assert(io.open(filename, "a"))
     ofp:write(line, opcode, r, l, m, processor.pc, processor.bp, processor.sp)
     local stack_counter_increment = 0
-    while stack_counter_increment < stack_counter+5 do
+    while stack_counter_increment < stack_counter + 5 do
         ofp:write(stack[stack_counter_increment])
         stack_counter_increment = stack_counter_increment + 1
     end
     ofp:write("\n")
     ofp:write("Registers: ")
-    for j=0, MAX_REGISTERS do
+    for j = 0, MAX_REGISTERS do
         ofp:write(regs[j])
     end
     ofp:write("\n")
@@ -196,31 +138,21 @@ end
 local function debugprint(code, proc, i, stck, regs)
     io.stderr:write(i, code[i].op, code[i].reg, code[i].level, code[i].m, "\n")
     io.stderr:write("Registers: ")
-    for j=0, MAX_REGISTERS do
+    for j = 0, MAX_REGISTERS do
         io.stderr:write(regs[j])
     end
     io.stderr:write("\n")
     io.stderr:write("Stack: ")
-    for j=0, proc.bp+1 do
+    for j = 0, proc.bp + 1 do
         io.stderr:write(stck[j])
     end
     io.stderr:write("\n\n")
 end
 
-local function init(processor, stack, R)
-    for i=0,MAX_STACK_HEIGHT do
-        stack[i] = 0
-    end
-    for i=0,MAX_REGISTERS do
-        R[i] = 0
-    end
-    processor = CPU.new()
-    processor.bp = 1
-    processor.sp = 0
-    processor.pc = 0
+local function init()
+    local processor = CpuImplementation:new()
     local ofp = assert(io.open("stacktraceoutput.txt", "a"))
     ofp:write("Initial Values                                          pc        bp        sp\n")
-    --stack[1]=1
     return processor
 end
 
@@ -230,7 +162,7 @@ local function execute(line, code, processor, stack, R)
     local reg = code[line].reg
     local level = code[line].level
     local m = code[line].m
-    
+
     processor.pc = line
 
     if op == 1 then
@@ -259,7 +191,7 @@ local function execute(line, code, processor, stack, R)
         stack[processor.sp + 4] = processor.pc
         stack_counter = stack_counter + 1
         processor.bp = processor.sp + 1
-        processor.pc = m-1
+        processor.pc = m - 1
     elseif op == 6 then
         opcode = "inc"
         processor.sp = processor.sp + m
@@ -330,23 +262,39 @@ local function execute(line, code, processor, stack, R)
     -- debugprint(code, processor, line, stack, R);
 end
 
-local function main(argc, argv)
-    local line
+local function get_instructions(lines)
+    local instructions = {}
+
+    print("Lines is " .. #lines .. " elements long")
+    local pattern = "(%d+)%D+(%d+)%D+(%d+)%D+(%d+)%D+"
+    for i=1, #lines do
+        local op, r, l, m = string.gmatch(lines[i], pattern)
+        local instruction = InstructionImplementation:new()
+        instruction:setOp(op)
+        instruction:setR(r)
+        instruction:setL(l)
+        instruction:setM(m)
+        print(string.format("Instruction is %s %s %s %s", op, r, l, m))
+        instructions[i] = instruction
+    end
+
+    return instructions
+end
+
+local function main(argv)
     local halt
     local stack = {}
-    for i=1,MAX_STACK_HEIGHT do
+    for i = 1, MAX_STACK_HEIGHT do
         stack[i] = 0
     end
     local R = {}
-    for i=1,MAX_REGISTERS do
-        R[i]=0
+    for i = 1, MAX_REGISTERS do
+        R[i] = RegisterImplementation:new()
     end
-    local code
-    local processor
 
-    code = file_scan(argv[1], code)
-    processor = init(processor, stack, R)
-    processor.pc = 0
+    local lines = file_scan(argv)
+    local code = get_instructions(lines)
+    local processor = init()
     halt = 0
     while halt ~= 1 and processor.pc < 500 do
         halt = execute(processor.pc, code, processor, stack, R)
@@ -354,3 +302,4 @@ local function main(argc, argv)
     end
 end
 
+main("../inputfile.txt")
