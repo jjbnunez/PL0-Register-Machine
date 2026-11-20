@@ -5,9 +5,6 @@ local CpuImplementation = require("domain.entities.cpu.cpu_implementation")
 local RegisterImplementation = require("domain.entities.register.register_implementation")
 local InstructionImplementation = require("domain.entities.instruction.instruction_implementation")
 
-local cpu = CpuImplementation:new()
-local register = RegisterImplementation:new()
-local stack = {}
 
 
 MAX_LEXI_LEVELS = 3
@@ -156,14 +153,14 @@ local function init()
     return processor
 end
 
-local function execute(line, code, processor, stack, R)
+local function execute(pc, instructions, processor, stack, R)
     local opcode
-    local op = code[line].op
-    local reg = code[line].reg
-    local level = code[line].level
-    local m = code[line].m
+    local op = instructions[pc+1].op
+    local reg = instructions[pc+1].r
+    local level = instructions[pc+1].l
+    local m = instructions[pc+1].m
 
-    processor.pc = line
+    processor.pc = pc
 
     if op == 1 then
         opcode = "lit"
@@ -198,12 +195,12 @@ local function execute(line, code, processor, stack, R)
     elseif op == 7 then
         opcode = "jmp"
         processor.pc = m - 1
-        line = m
+        pc = m
     elseif op == 8 then
         opcode = "jpc"
         if R[reg] == 0 then
             processor.pc = m - 1
-            line = m
+            pc = m
         end
     elseif op == 9 then
         opcode = "sio"
@@ -258,23 +255,27 @@ local function execute(line, code, processor, stack, R)
     end
 
     --opprint("opprintout.txt", line, opcode, reg, level, m);
-    stack_trace("stacktraceoutput.txt", line, opcode, reg, level, m, stack, processor, R)
+    stack_trace("stacktraceoutput.txt", pc, opcode, reg, level, m, stack, processor, R)
     -- debugprint(code, processor, line, stack, R);
 end
 
 local function get_instructions(lines)
     local instructions = {}
 
-    print("Lines is " .. #lines .. " elements long")
-    local pattern = "(%d+)%D+(%d+)%D+(%d+)%D+(%d+)%D+"
     for i=1, #lines do
-        local op, r, l, m = string.gmatch(lines[i], pattern)
+        local numbers = {}
+        for number in string.gmatch(lines[i], "%d+") do
+            numbers[#numbers + 1] = number
+        end
         local instruction = InstructionImplementation:new()
+        local op = numbers[1]
+        local r = numbers[2]
+        local l = numbers[3]
+        local m = numbers[4]
         instruction:setOp(op)
         instruction:setR(r)
         instruction:setL(l)
         instruction:setM(m)
-        print(string.format("Instruction is %s %s %s %s", op, r, l, m))
         instructions[i] = instruction
     end
 
@@ -282,8 +283,10 @@ local function get_instructions(lines)
 end
 
 local function main(argv)
-    local halt
+    local cpu = CpuImplementation:new()
+    local register = RegisterImplementation:new()
     local stack = {}
+    local halt
     for i = 1, MAX_STACK_HEIGHT do
         stack[i] = 0
     end
@@ -293,11 +296,11 @@ local function main(argv)
     end
 
     local lines = file_scan(argv)
-    local code = get_instructions(lines)
+    local instructions = get_instructions(lines)
     local processor = init()
     halt = 0
     while halt ~= 1 and processor.pc < 500 do
-        halt = execute(processor.pc, code, processor, stack, R)
+        halt = execute(processor.pc, instructions, processor, stack, R)
         processor.pc = processor.pc + 1
     end
 end
