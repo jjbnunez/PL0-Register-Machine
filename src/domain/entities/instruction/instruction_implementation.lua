@@ -1,6 +1,6 @@
 local InstructionInterface = require("domain.entities.instruction.instruction_interface")
 
-local InstructionImplementation = { op = 0, r = 0, l = 0, m = 0}
+local InstructionImplementation = { op = 0, r = 0, l = 0, m = 0 }
 
 function InstructionImplementation:new(o)
     o = o or {}

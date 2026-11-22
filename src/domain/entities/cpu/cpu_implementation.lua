@@ -1,6 +1,12 @@
 local CpuInterface = require("domain.entities.cpu.cpu_interface")
+local InstructionImplementation = require("domain.entities.instruction.instruction_implementation")
 
-local CpuImplementation = { bp = 1, sp = 0, pc = 0 }
+local CpuImplementation = {
+    sp = 0,
+    bp = 1,
+    pc = 0,
+    ir_ = 0
+}
 
 function CpuImplementation:new(o)
     o = o or {}
@@ -10,8 +16,13 @@ function CpuImplementation:new(o)
     return o
 end
 
-function CpuImplementation:fetch(op)
-    print("I fetched with op " .. op)
+function CpuImplementation:getIr()
+    return self.ir_
+end
+
+function CpuImplementation:fetch()
+    self.ir_ = self.pc
+    self.pc = self.pc + 1
 end
 
 function CpuImplementation:execute(op)
