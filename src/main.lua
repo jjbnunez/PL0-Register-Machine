@@ -5,8 +5,6 @@ local CpuImplementation = require("domain.entities.cpu.cpu_implementation")
 local RegisterImplementation = require("domain.entities.register.register_implementation")
 local InstructionImplementation = require("domain.entities.instruction.instruction_implementation")
 
-
-
 MAX_LEXI_LEVELS = 3
 MAX_STACK_HEIGHT = 2000
 MAX_REGISTERS = 8
@@ -111,158 +109,153 @@ local function opprint(filename, line, opcode, r, l, m)
     ofp:close()
 end
 
-local function stack_trace(filename, opcode, r, l, m, stack, processor, regs)
+local function stack_trace(filename, opcode, r, l, m, stack, cpu, registers)
     local ofp = assert(io.open(filename, "a"))
-    ofp:write(string.format("%d", processor:getIr()))
+    ofp:write(string.format("%d\t", cpu:getIr()))
     ofp:write(string.format("%s\t", opcode))
     ofp:write(string.format("%5d\t", r))
     ofp:write(string.format("%5d\t", l))
     ofp:write(string.format("%5d\t", m))
-    ofp:write(string.format("%5d\t", processor.pc))
-    ofp:write(string.format("%5d\t", processor.bp))
-    ofp:write(string.format("%5d\t", processor.sp))
+    ofp:write(string.format("%5d\t", cpu:getPc()))
+    ofp:write(string.format("%5d\t", cpu:getBp()))
+    ofp:write(string.format("%5d\t", cpu:getSp()))
     ofp:write(string.format("\n\n"))
     local stack_counter_increment = 0
     while stack_counter_increment < stack_counter + 5 do
-        print(string.format("stack_counter_increment = %d", stack_counter_increment+1))
         ofp:write(stack[stack_counter_increment + 1])
         stack_counter_increment = stack_counter_increment + 1
     end
     ofp:write("\n")
     ofp:write("Registers:\n")
     for j = 0, MAX_REGISTERS - 1 do
-        ofp:write(regs[j]:get())
+        ofp:write(registers[j]:get())
     end
     ofp:write("\n")
     ofp:close()
 end
 
-local function debugprint(instructions, processor, pc, stack, registers)
+local function debugprint(instructions, cpu, stack, registers)
+    local ir = cpu:getIr()
     io.stdout:write("BEGIN DEBUG PRINT\n")
-    io.stderr:write(string.format("Last instruction:\n\tpc %d\n\top %d\n\tr %d\n\tl %d\n\tm %d\n", pc,
-        instructions[pc]:getOp(), instructions[pc]:getR(), instructions[pc]:getL(), instructions[pc]:getM()))
+    io.stderr:write(string.format("Last instruction:\n\tpc %d\n\top %d\n\tr %d\n\tl %d\n\tm %d\n", ir,
+        instructions[ir]:getOp(), instructions[ir]:getR(), instructions[ir]:getL(), instructions[ir]:getM()))
     io.stderr:write("\nRegisters:\n")
-    for j = 0, MAX_REGISTERS-1 do
+    for j = 0, MAX_REGISTERS - 1 do
         io.stderr:write(string.format("\tR[%02d]: %d\n", j, registers[j]:get()))
     end
     io.stderr:write("\n")
     io.stderr:write("Stack: ")
-    for j = 0, processor.bp + 1 do
+    for j = 0, cpu:getBp() + 1 do
         io.stderr:write(stack[j])
     end
     io.stderr:write("\n")
     io.stdout:write("END DEBUG PRINT\n")
 end
 
-local function init()
-    local processor = CpuImplementation:new()
-    local ofp = assert(io.open("stacktraceoutput.txt", "w"))
-    ofp:write("Initial Values\t\t\t\tpc\t\tbp\t\tsp\n")
-    ofp:close()
-    return processor
-end
-
-local function execute(instructions, processor, stack, R)
-    local ir = processor:getIr()
+local function execute(instructions, cpu, stack, registers)
+    local ir = cpu:getIr()
     local op = instructions[ir]:getOp()
-    local reg = instructions[ir]:getR()
-    local level = instructions[ir]:getL()
+    local r = instructions[ir]:getR()
+    local l = instructions[ir]:getL()
     local m = instructions[ir]:getM()
+    local halt = 0
 
     local opcode
     if op == 1 then
         opcode = "lit"
-        R[reg]:set(m)
+        registers[r]:set(m)
     elseif op == 2 then
         opcode = "rtn"
-        processor.sp = processor.bp - 1
-        processor.bp = stack[processor.ir + 3]
-        processor.pc = stack[processor.ir + 4]
+        cpu:setSp(cpu:getBp() - 1)
+        cpu:setBp(stack[cpu:getSp() + 3])
+        cpu:setPc(stack[cpu:getSp() + 4])
     elseif op == 3 then
         opcode = "lod"
-        R[reg]:set(stack[base(level, processor.bp, stack) + m])
+        registers[r]:set(stack[base(l, cpu:getBp(), stack) + m])
     elseif op == 4 then
         opcode = "sto"
-        stack[base(level, processor.bp, stack) + m] = R[reg]:get()
+        stack[base(l, cpu:getBp(), stack) + m] = registers[r]:get()
         stack_counter = stack_counter + 1
     elseif op == 5 then
         opcode = "cal"
-        stack[processor.sp + 1] = 0
+        stack[cpu:getSp() + 1] = 0 -- space to return value
         stack_counter = stack_counter + 1
-        stack[processor.sp + 2] = base(level, processor.bp, stack)
+        stack[cpu:getSp() + 2] = base(l, cpu:getBp(), stack) -- static link
         stack_counter = stack_counter + 1
-        stack[processor.sp + 3] = processor.bp
+        stack[cpu:getSp() + 3] = cpu:getBp() -- dynamic link
         stack_counter = stack_counter + 1
-        stack[processor.sp + 4] = ir
+        stack[cpu:getSp() + 4] = cpu:getPc() -- return address
         stack_counter = stack_counter + 1
-        processor.bp = processor.sp + 1
-        processor.pc = m - 1
+        cpu:setBp(cpu:getSp() + 1)
+        cpu:setPc(m)
     elseif op == 6 then
         opcode = "inc"
-        processor.sp = processor.sp + m
+        cpu:setSp(cpu:getSp() + m)
     elseif op == 7 then
         opcode = "jmp"
-        processor.pc = m - 1
+        cpu:setPc(m)
         pc = m
     elseif op == 8 then
         opcode = "jpc"
-        if R[reg]:get() == 0 then
-            processor.pc = m - 1
+        if registers[r]:get() == 0 then
+            cpu:setPc(m)
         end
     elseif op == 9 then
         opcode = "sio"
         if m == 1 then
-            io.stdout:write("output is: ", R[reg]:get(), "\n")
+            io.stdout:write("output is: ", registers[r]:get(), "\n")
         elseif m == 2 then
             --scanf("%d", &R[reg])
         elseif m == 3 then
-            return 1
+            halt = 1
         end
     elseif op == 10 then
         opcode = "neg"
-        R[reg]:set(-R[level]:get())
+        registers[r]:set(-registers[l]:get())
     elseif op == 11 then
         opcode = "add"
-        R[reg]:set(R[level]:get() + R[m]:get())
+        registers[r]:set(registers[l]:get() + registers[m]:get())
     elseif op == 12 then
         opcode = "sub"
-        R[reg]:set(R[level]:get() - R[m]:get())
+        registers[r]:set(registers[l]:get() - registers[m]:get())
     elseif op == 13 then
         opcode = "mul"
-        R[reg]:set(R[level]:get() * R[m]:get())
+        registers[r]:set(registers[l]:get() * registers[m]:get())
     elseif op == 14 then
         opcode = "div"
-        R[reg]:set(math.floor(R[level]:get() / R[m]:get()))
+        registers[r]:set(math.floor(registers[l]:get() / registers[m]:get()))
     elseif op == 15 then
         opcode = "odd"
-        R[reg]:set(R[reg]:get() % 2)
+        registers[r]:set(registers[r]:get() % 2)
     elseif op == 16 then
         opcode = "mod"
-        R[reg]:set(MOD(R[level]:get(), R[m]:get()))
+        registers[r]:set(MOD(registers[l]:get(), registers[m]:get()))
     elseif op == 17 then
         opcode = "eql"
-        R[reg]:set(EQL(R[level]:get(), R[m]:get()))
+        registers[r]:set(EQL(registers[l]:get(), registers[m]:get()))
     elseif op == 18 then
         opcode = "neq"
-        R[reg]:set(NEQ(R[level]:get(), R[m]:get()))
+        registers[r]:set(NEQ(registers[l]:get(), registers[m]:get()))
     elseif op == 19 then
         opcode = "lss"
-        R[reg]:set(LSS(R[level]:get(), R[m]:get()))
+        registers[r]:set(LSS(registers[l]:get(), registers[m]:get()))
     elseif op == 20 then
         opcode = "leq"
-        R[reg]:set(LEQ(R[level]:get(), R[m]:get()))
+        registers[r]:set(LEQ(registers[l]:get(), registers[m]:get()))
     elseif op == 21 then
         opcode = "gtr"
-        R[reg]:set(GTR(R[level]:get(), R[m]:get()))
+        registers[r]:set(GTR(registers[l]:get(), registers[m]:get()))
     elseif op == 22 then
         opcode = "geq"
-        R[reg]:set(GEQ(R[level]:get(), R[m]:get()))
+        registers[r]:set(GEQ(registers[l]:get(), registers[m]:get()))
     else
         io.stderr:write("Invalid opcode: ", op)
     end
 
     --opprint("opprintout.txt", line, opcode, reg, level, m);
-    stack_trace("stacktraceoutput.txt", opcode, reg, level, m, stack, processor, R)
+    stack_trace("stacktraceoutput.txt", opcode, r, l, m, stack, cpu, registers)
+
+    return halt
 end
 
 local function get_instructions(lines)
@@ -292,28 +285,30 @@ local function get_instructions(lines)
 end
 
 local function main(argv)
-    local cpu = CpuImplementation:new()
-    local register = RegisterImplementation:new()
     local stack = {}
-    local halt
     for i = 0, MAX_STACK_HEIGHT - 1 do
         stack[i] = 0
     end
-    local R = {}
-    for i = 0, MAX_REGISTERS - 1 do
-        R[i] = RegisterImplementation:new()
-    end
-    print()
 
-    local lines = file_scan(argv)
-    local instructions = get_instructions(lines)
-    local processor = init()
-    halt = 0
-    while halt ~= 1 and processor.pc < MAX_CODE_LENGTH - 1 do
-        processor:fetch()
-        halt = execute(instructions, processor, stack, R)
+    local registers = {}
+    for i = 0, MAX_REGISTERS - 1 do
+        registers[i] = RegisterImplementation:new()
+    end
+
+    local instructions = get_instructions(file_scan(argv))
+
+    local cpu = CpuImplementation:new()
+
+    local ofp = assert(io.open("stacktraceoutput.txt", "w"))
+    ofp:write("Initial Values\t\t\t\tpc\t\tbp\t\tsp\n")
+    ofp:close()
+
+    local halt = 0
+    while halt ~= 1 and cpu:getPc() < MAX_CODE_LENGTH - 1 do
+        cpu:fetch()
+        halt = execute(instructions, cpu, stack, registers)
         if halt == 1 then
-            debugprint(instructions, processor, processor.pc, stack, R)
+            debugprint(instructions, cpu, stack, registers)
             break
         end
     end

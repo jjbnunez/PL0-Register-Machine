@@ -1,8 +1,10 @@
+--[[ instruction_implementation.lua ]]
+
 local InstructionInterface = require("domain.entities.instruction.instruction_interface")
 
-local InstructionImplementation = { op = 0, r = 0, l = 0, m = 0 }
+local M = { op_ = 0, r_ = 0, l_ = 0, m_ = 0 }
 
-function InstructionImplementation:new(o)
+function M:new(o)
     o = o or {}
     self.__index = self
     setmetatable(o, self)
@@ -10,36 +12,36 @@ function InstructionImplementation:new(o)
     return o
 end
 
-function InstructionImplementation:getOp()
-    return self.op
+function M:getOp()
+    return self.op_
 end
 
-function InstructionImplementation:setOp(op)
-    self.op = op
+function M:setOp(op)
+    self.op_ = op
 end
 
-function InstructionImplementation:getR()
-    return self.r
+function M:getR()
+    return self.r_
 end
 
-function InstructionImplementation:setR(r)
-    self.r = r
+function M:setR(r)
+    self.r_ = r
 end
 
-function InstructionImplementation:getL()
-    return self.l
+function M:getL()
+    return self.l_
 end
 
-function InstructionImplementation:setL(l)
-    self.l = l
+function M:setL(l)
+    self.l_ = l
 end
 
-function InstructionImplementation:getM()
-    return self.m
+function M:getM()
+    return self.m_
 end
 
-function InstructionImplementation:setM(m)
-    self.m = m
+function M:setM(m)
+    self.m_ = m
 end
 
-return InstructionImplementation
+return M

@@ -1,14 +1,15 @@
-local CpuInterface = require("domain.entities.cpu.cpu_interface")
-local InstructionImplementation = require("domain.entities.instruction.instruction_implementation")
+--[[ cpu_implementation.lua ]]
 
-local CpuImplementation = {
-    sp = 0,
-    bp = 1,
-    pc = 0,
+local CpuInterface = require("domain.entities.cpu.cpu_interface")
+
+local M = {
+    sp_ = 0,
+    bp_ = 1,
+    pc_ = 0,
     ir_ = 0
 }
 
-function CpuImplementation:new(o)
+function M:new(o)
     o = o or {}
     self.__index = self
     setmetatable(o, self)
@@ -16,17 +17,45 @@ function CpuImplementation:new(o)
     return o
 end
 
-function CpuImplementation:getIr()
+function M:getSp()
+    return self.sp_
+end
+
+function M:setSp(sp)
+    self.sp_ = sp
+end
+
+function M:getBp()
+    return self.bp_
+end
+
+function M:setBp(bp)
+    self.bp_ = bp
+end
+
+function M:getPc()
+    return self.pc_
+end
+
+function M:setPc(pc)
+    self.pc_ = pc
+end
+
+function M:getIr()
     return self.ir_
 end
 
-function CpuImplementation:fetch()
-    self.ir_ = self.pc
-    self.pc = self.pc + 1
+function M:setIr(ir)
+    self.ir_ = ir
 end
 
-function CpuImplementation:execute(op)
+function M:fetch()
+    self.ir_ = self.pc_
+    self.pc_ = self.pc_ + 1
+end
+
+function M:execute(op)
     print("I executed with op " .. op)
 end
 
-return CpuImplementation
+return M

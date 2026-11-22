@@ -1,4 +1,6 @@
-local InstructionInterface = {
+--[[ instruction_interface.lua ]]
+
+local M = {
     required_methods = {
         "getOp",
         "setOp",
@@ -11,7 +13,7 @@ local InstructionInterface = {
     }
 }
 
-function InstructionInterface:implement(class)
+function M:implement(class)
     for _, method in ipairs(self.required_methods) do
         if type(class[method]) ~= "function" then
             error(string.format("Class must implement method: %s", method))
@@ -19,4 +21,4 @@ function InstructionInterface:implement(class)
     end
 end
 
-return InstructionInterface
+return M
