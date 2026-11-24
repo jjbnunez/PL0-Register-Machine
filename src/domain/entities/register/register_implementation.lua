@@ -1,8 +1,10 @@
+--[[ register_implementation.lua ]]
+
 local RegisterInterface = require("domain.entities.register.register_interface")
 
-local RegisterImplementation = { data_ = 0 }
+local M = { data_ = 0 }
 
-function RegisterImplementation:new(o)
+function M:new(o)
     o = o or {}
     self.__index = self
     setmetatable(o, self)
@@ -10,12 +12,12 @@ function RegisterImplementation:new(o)
     return o
 end
 
-function RegisterImplementation:get()
+function M:get()
     return self.data_
 end
 
-function RegisterImplementation:set(data)
+function M:set(data)
     self.data_ = data
 end
 
-return RegisterImplementation
+return M

@@ -86,10 +86,10 @@ local function base(l, base_pointer, stack)
     return bl
 end
 
-local function file_scan(filename)
+local function read_input_file(filename)
     local ifp = assert(io.open(filename, "r"))
-    local ofp = assert(io.open("opprintout.txt", "w"))
-    local ofp2 = assert(io.open("stacktrace.txt", "w"))
+    local ofp = assert(io.open("op_printout.txt", "w"))
+    local ofp2 = assert(io.open("stack_trace.txt", "w"))
 
     local lines = {}
     for line in ifp:lines() do
@@ -103,13 +103,30 @@ local function file_scan(filename)
     return lines
 end
 
-local function opprint(filename, line, opcode, r, l, m)
-    local ofp = assert(io.open(filename, "a"))
-    ofp:write(line, opcode, r, l, m)
+local function init_op_printout(filename)
+    local ofp = assert(io.open(filename, "w"))
     ofp:close()
 end
 
-local function stack_trace(filename, opcode, r, l, m, stack, cpu, registers)
+local function write_op_printout(filename, instructions)
+    local ofp = assert(io.open(filename, "a"))
+    for i=0, #instructions do
+        ofp:write(string.format("%d ", i))
+        ofp:write(string.format("%s ", instructions[i]:getOpString()))
+        ofp:write(string.format("%d ", instructions[i]:getR()))
+        ofp:write(string.format("%d ", instructions[i]:getL()))
+        ofp:write(string.format("%d\n", instructions[i]:getM()))
+    end
+    ofp:close()
+end
+
+local function init_stack_trace(filename)
+    local ofp = assert(io.open(filename, "w"))
+    ofp:write("Initial Values\t\t\t\tpc\t\tbp\t\tsp\n")
+    ofp:close()
+end
+
+local function write_stack_trace(filename, opcode, r, l, m, stack, cpu, registers)
     local ofp = assert(io.open(filename, "a"))
     ofp:write(string.format("%d\t", cpu:getIr()))
     ofp:write(string.format("%s\t", opcode))
@@ -119,16 +136,13 @@ local function stack_trace(filename, opcode, r, l, m, stack, cpu, registers)
     ofp:write(string.format("%5d\t", cpu:getPc()))
     ofp:write(string.format("%5d\t", cpu:getBp()))
     ofp:write(string.format("%5d\t", cpu:getSp()))
-    ofp:write(string.format("\n\n"))
     local stack_counter_increment = 0
     while stack_counter_increment < stack_counter + 5 do
+        if stack_counter_increment > 0 then
+            ofp:write(" ")
+        end
         ofp:write(stack[stack_counter_increment + 1])
         stack_counter_increment = stack_counter_increment + 1
-    end
-    ofp:write("\n")
-    ofp:write("Registers:\n")
-    for j = 0, MAX_REGISTERS - 1 do
-        ofp:write(registers[j]:get())
     end
     ofp:write("\n")
     ofp:close()
@@ -145,7 +159,7 @@ local function debugprint(instructions, cpu, stack, registers)
     end
     io.stderr:write("\n")
     io.stderr:write("Stack: ")
-    for j = 0, cpu:getBp() + 1 do
+    for j = 0, cpu:getSp() do
         io.stderr:write(stack[j])
     end
     io.stderr:write("\n")
@@ -154,30 +168,25 @@ end
 
 local function execute(instructions, cpu, stack, registers)
     local ir = cpu:getIr()
+    local opcode = instructions[ir]:getOpString()
     local op = instructions[ir]:getOp()
     local r = instructions[ir]:getR()
     local l = instructions[ir]:getL()
     local m = instructions[ir]:getM()
     local halt = 0
 
-    local opcode
     if op == 1 then
-        opcode = "lit"
         registers[r]:set(m)
     elseif op == 2 then
-        opcode = "rtn"
         cpu:setSp(cpu:getBp() - 1)
         cpu:setBp(stack[cpu:getSp() + 3])
         cpu:setPc(stack[cpu:getSp() + 4])
     elseif op == 3 then
-        opcode = "lod"
         registers[r]:set(stack[base(l, cpu:getBp(), stack) + m])
     elseif op == 4 then
-        opcode = "sto"
         stack[base(l, cpu:getBp(), stack) + m] = registers[r]:get()
         stack_counter = stack_counter + 1
     elseif op == 5 then
-        opcode = "cal"
         stack[cpu:getSp() + 1] = 0 -- space to return value
         stack_counter = stack_counter + 1
         stack[cpu:getSp() + 2] = base(l, cpu:getBp(), stack) -- static link
@@ -189,19 +198,15 @@ local function execute(instructions, cpu, stack, registers)
         cpu:setBp(cpu:getSp() + 1)
         cpu:setPc(m)
     elseif op == 6 then
-        opcode = "inc"
         cpu:setSp(cpu:getSp() + m)
     elseif op == 7 then
-        opcode = "jmp"
         cpu:setPc(m)
         pc = m
     elseif op == 8 then
-        opcode = "jpc"
         if registers[r]:get() == 0 then
             cpu:setPc(m)
         end
     elseif op == 9 then
-        opcode = "sio"
         if m == 1 then
             io.stdout:write("output is: ", registers[r]:get(), "\n")
         elseif m == 2 then
@@ -210,50 +215,36 @@ local function execute(instructions, cpu, stack, registers)
             halt = 1
         end
     elseif op == 10 then
-        opcode = "neg"
         registers[r]:set(-registers[l]:get())
     elseif op == 11 then
-        opcode = "add"
         registers[r]:set(registers[l]:get() + registers[m]:get())
     elseif op == 12 then
-        opcode = "sub"
         registers[r]:set(registers[l]:get() - registers[m]:get())
     elseif op == 13 then
-        opcode = "mul"
         registers[r]:set(registers[l]:get() * registers[m]:get())
     elseif op == 14 then
-        opcode = "div"
         registers[r]:set(math.floor(registers[l]:get() / registers[m]:get()))
     elseif op == 15 then
-        opcode = "odd"
         registers[r]:set(registers[r]:get() % 2)
     elseif op == 16 then
-        opcode = "mod"
         registers[r]:set(MOD(registers[l]:get(), registers[m]:get()))
     elseif op == 17 then
-        opcode = "eql"
         registers[r]:set(EQL(registers[l]:get(), registers[m]:get()))
     elseif op == 18 then
-        opcode = "neq"
         registers[r]:set(NEQ(registers[l]:get(), registers[m]:get()))
     elseif op == 19 then
-        opcode = "lss"
         registers[r]:set(LSS(registers[l]:get(), registers[m]:get()))
     elseif op == 20 then
-        opcode = "leq"
         registers[r]:set(LEQ(registers[l]:get(), registers[m]:get()))
     elseif op == 21 then
-        opcode = "gtr"
         registers[r]:set(GTR(registers[l]:get(), registers[m]:get()))
     elseif op == 22 then
-        opcode = "geq"
         registers[r]:set(GEQ(registers[l]:get(), registers[m]:get()))
     else
         io.stderr:write("Invalid opcode: ", op)
     end
 
-    --opprint("opprintout.txt", line, opcode, reg, level, m);
-    stack_trace("stacktraceoutput.txt", opcode, r, l, m, stack, cpu, registers)
+    write_stack_trace("stack_trace.txt", opcode, r, l, m, stack, cpu, registers)
 
     return halt
 end
@@ -277,14 +268,10 @@ local function get_instructions(lines)
         instruction:setM(m)
         instructions[i] = instruction
     end
-    for k = 0, #instructions do
-        print(string.format("Instruction %d is %d %d %d %d", k, instructions[k]:getOp(), instructions[k]:getR(),
-            instructions[k]:getL(), instructions[k]:getM()))
-    end
     return instructions
 end
 
-local function main(argv)
+local function main()
     local stack = {}
     for i = 0, MAX_STACK_HEIGHT - 1 do
         stack[i] = 0
@@ -295,13 +282,13 @@ local function main(argv)
         registers[i] = RegisterImplementation:new()
     end
 
-    local instructions = get_instructions(file_scan(argv))
+    local instructions = get_instructions(read_input_file("input_file.txt"))
+    init_op_printout("op_printout.txt")
+    write_op_printout("op_printout.txt", instructions);
+
+    init_stack_trace("stack_trace.txt")
 
     local cpu = CpuImplementation:new()
-
-    local ofp = assert(io.open("stacktraceoutput.txt", "w"))
-    ofp:write("Initial Values\t\t\t\tpc\t\tbp\t\tsp\n")
-    ofp:close()
 
     local halt = 0
     while halt ~= 1 and cpu:getPc() < MAX_CODE_LENGTH - 1 do
@@ -314,4 +301,4 @@ local function main(argv)
     end
 end
 
-main("../inputfile.txt")
+main()
