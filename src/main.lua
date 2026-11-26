@@ -76,14 +76,13 @@ local function GEQ(from, from2)
     end
 end
 
-local function base(l, base_pointer, stack)
-    local bl = base_pointer
+local function base(l, bp, stack)
+    local b1 = bp
     while l > 0 do
-        local index = bl + l
-        bl = stack[index]
+        b1 = stack:get(b1 + 1)
         l = l - 1
     end
-    return bl
+    return b1
 end
 
 local function read_input_file(filename)
@@ -122,26 +121,26 @@ end
 
 local function init_stack_trace(filename)
     local ofp = assert(io.open(filename, "w"))
-    ofp:write("Initial Values\t\t\t\tpc\t\tbp\t\tsp\n")
+    ofp:write("Initial Values\t\tpc\tbp\tsp\n")
     ofp:close()
 end
 
-local function write_stack_trace(filename, opcode, r, l, m, stack, cpu, registers)
+local function write_stack_trace(filename, opcode, r, l, m, stack, cpu)
     local ofp = assert(io.open(filename, "a"))
     ofp:write(string.format("%d\t", cpu:getIr()))
-    ofp:write(string.format("%s\t", opcode))
-    ofp:write(string.format("%5d\t", r))
-    ofp:write(string.format("%5d\t", l))
-    ofp:write(string.format("%5d\t", m))
-    ofp:write(string.format("%5d\t", cpu:getPc()))
-    ofp:write(string.format("%5d\t", cpu:getBp()))
-    ofp:write(string.format("%5d\t", cpu:getSp()))
+    ofp:write(string.format("%s ", opcode))
+    ofp:write(string.format("%d\t", r))
+    ofp:write(string.format("%d\t", l))
+    ofp:write(string.format("%d\t", m))
+    ofp:write(string.format("%d\t", cpu:getPc()))
+    ofp:write(string.format("%d\t", cpu:getBp()))
+    ofp:write(string.format("%d\t", cpu:getSp()))
     local stack_counter_increment = 0
-    while stack_counter_increment < stack_counter + 5 do
+    while stack_counter_increment < cpu:getSp() do
         if stack_counter_increment > 0 then
             ofp:write(" ")
         end
-        ofp:write(stack[stack_counter_increment + 1])
+        ofp:write(stack:get(stack_counter_increment))
         stack_counter_increment = stack_counter_increment + 1
     end
     ofp:write("\n")
@@ -244,7 +243,7 @@ local function execute(instructions, cpu, stack, registers)
         io.stderr:write("Invalid opcode: ", op)
     end
 
-    write_stack_trace("stack_trace.txt", opcode, r, l, m, stack, cpu, registers)
+    write_stack_trace("stack_trace.txt", opcode, r, l, m, stack, cpu)
 
     return halt
 end
